@@ -23,11 +23,11 @@ Optional Inputs
     -a (float between 0.5 and 1)
         the minimum alignment overlap; default is 0.9
     -m (int)
-        the maximum allowed length difference between two merged motifs; default is 2
+        the maximum allowed length difference between two merged motifs; default is 3
     -t (float between 0 and 1)
-        the total information ratio requirement for merging; default is 0.85
+        the total information ratio requirement for merging; default is 0.8
     -r (int)
-        the difference in number of positions that can be tolerated when comparing high-information windows; default is 0
+        the difference in number of positions that can be tolerated when comparing high-information windows; default is 1
 
 '''
 
@@ -72,9 +72,9 @@ if __name__ == "__main__":
     # default parameters
     sim_cutoff = 0.9
     min_overlap = 0.9
-    tir_cutoff = 0.85
-    max_allowed_len_diff = 2
-    window_relax = 0
+    tir_cutoff = 0.8
+    max_allowed_len_diff = 3
+    window_relax = 1
     form = None
     main(sys.argv[1:])
 

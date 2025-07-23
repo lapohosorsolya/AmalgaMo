@@ -57,9 +57,9 @@ The following parameters are *optional*:
 
 - `-s` (float between 0.5 and 1): the similarity cutoff for merging; default is 0.9
 - `-a` (float between 0.5 and 1): the minimum alignment overlap; default is 0.9
-- `-m` (int): the maximum allowed length difference between two merged motifs; default is 2
-- `-t` (float between 0 and 1): the total information ratio requirement for merging; default is 0.85
-- `-r` (int): the difference in number of positions that can be tolerated when comparing high-information windows; default is 0
+- `-m` (int): the maximum allowed length difference between two merged motifs; default is 3
+- `-t` (float between 0 and 1): the total information ratio requirement for merging; default is 0.8
+- `-r` (int): the difference in number of positions that can be tolerated when comparing high-information windows; default is 1
 
 Here is a command line template using default settings:
 
