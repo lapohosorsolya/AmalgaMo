@@ -1,0 +1,10 @@
+{
+    "tir_cutoff": 0.8,
+    "max_length_diff": 3,
+    "max_core_length_diff": 1,
+    "min_overlap": 0.9,
+    "sim_cutoff": 0.9,
+    "input_dir": "/home/orsi/Data/hocomoco_v12/pcm",
+    "output_dir": "/home/orsi/Projects/AmalgaMo/example_output",
+    "motif_format": "hocomoco"
+}
