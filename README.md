@@ -7,20 +7,33 @@ This repository houses AmalgaMo, a tool developed for flexible merging of DNA-bi
 - [Overview](#overview)
 - [Download](#download)
 - [Dependencies](#dependencies)
-- [AmalgaMo Usage](#amalgamo-usage)
+- [AmalgaMo usage](#amalgamo-usage)
   - [Input](#input)
   - [Output](#output)
-- [Running monaLisa regression using the output of AmalgaMo](#running-monalisa-regression-using-the-output-of-amalgamo)
   - [Converting AmalgaMo output to JASPAR format](#converting-amalgamo-output-to-jaspar-format)
+- [Using the output of AmalgaMo for monaLisa's randomized Lasso stability selection](#using-the-output-of-amalgamo-for-monalisas-randomized-lasso-stability-selection)
   - [Environment for monaLisa pipeline](#environment-for-monalisa-pipeline)
   - [Running monaLisa's randomized Lasso stability selection](#running-monalisas-randomized-lasso-stability-selection)
+- [Notes](#notes)
 
 
 ## Overview
 
 Given any set of input motifs in HOCOMOCO, JASPAR, or MEME format, AmalgaMo iteratively merges the most similar pairs according to the user-specified parameters, generating position-probability matrices, logos, and merging information for each resultant motif (see [example_output](/example_output)). The default settings have been tuned specifically using the HOCOMOCO v12 human core motif collection for downstream regression-based motif enrichment analysis. However, the five parameters provide ample flexibility for other applications.
 
-AmalgaMo is described in detail in the associated manuscript titled *AmalgaMo: a flexible tool for DNA motif merging* by Orsolya Lapohos and Gregory Fonseca (under review).
+AmalgaMo is described in detail in the associated manuscript titled *AmalgaMo: flexible DNA motif merging* by Orsolya Lapohos and Gregory Fonseca (under review). This manuscript is available as a preprint [here](https://www.biorxiv.org/content/early/2025/08/01/2025.07.29.667561).
+
+Preprint citation:
+
+    @article{Lapohos2025,
+        author = {Lapohos, Orsolya and Fonseca, Gregory J.},
+        title = {AmalgaMo: flexible DNA motif merging},
+        year = {2025},
+	    journal = {bioRxiv},
+	    doi = {10.1101/2025.07.29.667561}
+    }
+
+Below, you will find general instructions and documentation. A tutorial with real examples is also available [here](/tutorial.md).
 
 ## Download
 
@@ -30,43 +43,56 @@ This repository may be downloaded using:
 
 ## Dependencies
 
-This repository was written and tested with Python 3.6. All dependencies are listed in the [requirements.txt](/requirements.txt) file. To create a conda environment with the same Python version and dependencies, please enter the repository directory and run: 
+This repository was written and tested with Python 3.6 on Ubuntu 24.04.3 LTS. All dependencies are listed in the [requirements.txt](/requirements.txt) file. To create a conda environment with the same Python version and dependencies, please enter the repository directory and run: 
 
     conda create --name amalgamo_env --file requirements.txt
 
-Then, to run the Python programs described below in this environment, you may use the following command line template:
+Then, to run the Python programs described below in this environment, either activate the environment first and then run AmalgaMo:
+
+    conda activate amalgamo_env
+
+    python <program_name>.py ...
+
+Or, you may use the following command line template without activating the environment first:
 
     conda run -n amalgamo_env python <program_name>.py ...
 
-Alternatively,
+Another alternative:
 
     <path to amalgamo_env>/bin/python <program_name>.py ...
 
 
-## AmalgaMo Usage
+## AmalgaMo usage
 
 ### Input
 
 The following parameters are **required**:
 
-- `-i` (input directory): the full path to the directory containing the input motif matrices (individual motif files; must be counts or probabilities)
-- `-o` (output directory): the directory where the output should be written (will make this directory if it does not exist yet)
-- `-f` (motif format code): the file format of the input motifs (lowercase); HOCOMOCO, JASPAR, and MEME format supported
+- `-i` (input path): path to input motifs (counts or probabilities); may be a single file with motif matrices delimited by empty lines, or a directory containing individual motif files
+- `-o` (output directory): output directory where the output should be written; will make this if it doesn't exist
+- `-f` (motif format code): the file format of the input motifs; HOCOMOCO, JASPAR, and MEME format supported
+
+Please note that it is crucial that the specified motif format code matches the actual format of the input motifs. If not, parsing may continue incorrectly without raising an error.
 
 The following parameters are *optional*:
 
-- `-s` (float between 0.5 and 1): the similarity cutoff for merging; default is 0.9
-- `-a` (float between 0.5 and 1): the minimum alignment overlap; default is 0.9
-- `-m` (int): the maximum allowed length difference between two merged motifs; default is 3
-- `-t` (float between 0 and 1): the total information ratio requirement for merging; default is 0.8
-- `-r` (int): the difference in number of positions that can be tolerated when comparing high-information windows; default is 1
+- `-h` show help message and exit
+- `-s` (float between 0.5 and 1): minimum similarity score to consider merging; default is 0.9
+- `-a` (float between 0.5 and 1): minimum alignment overlap to consider merging; default is 0.9
+- `-t` (float between 0.5 and 1): minimum total information ratio to consider merging; default is 0.8
+- `-m` (int): maximum allowed length difference to consider merging; default is 3
+- `-r` (int): maximum allowed core length difference to consider merging; default is 1
+- `-p` : select representatives; if this flag is given, the output will include representative motifs for each merged group, in addition to averaged PPMs
+- `-n` : do not save merged motif logos; if this flag is given, the output will not include the merged motif logos
+
+**Note on representative motifs:** By default, AmalgaMo is designed to average highly similar aligned PPMs. In our manuscript, it is demonstrated that this method is effective. However, users may instead prefer to select a real motif from the set of original PPMs to represent a set of highly similar motifs. This may be a good choice when many input motifs have not been validated extensively. When the the `-p` flag is provided, AmalgaMo will first perform the default merging algorithm, and then use the merged sets to select representatives at the end. For each merged motif set, the medioid (using the same similarity metric) is selected as the representative. The output for this method is written to files with the prefix `AmalgaMo_representative_PPMs`.
 
 Here is a command line template using default settings:
 
-    python AmalgaMo.py 
-        -i <path to motif directory>
-        -o <path to output directory>
-        -f <hocomoco|jaspar|meme>
+    python AmalgaMo.py \
+    -i <path to motif directory> \
+    -o <path to output directory> \
+    -f <hocomoco|jaspar|meme> \
 
 The default settings have been optimized for downstream regression-based motif enrichment analysis using HOCOMOCO v12 human core motifs as input. For other contexts, users may need to modify certain parameter settings. Please see the manuscript for details.
 
@@ -75,7 +101,8 @@ The default settings have been optimized for downstream regression-based motif e
 A successful run of AmalgaMo produces the following files in the specified output directories:
 
     .
-    ├── AmalgaMo_PPMs.npz                   # NumPy archive file with all output PPMs
+    ├── AmalgaMo_PPMs.npz                   # all output PPMs in a NumPy archive file
+    ├── AmalgaMo_PPMs.pfm                   # all output PPMs in HOCOMOCO (or other specified) format
     ├── AmalgaMo_results.json               # JSON file mapping merged motif names to original motifs
     ├── AmalgaMo_params.json                # JSON file with run parameters
     ├── AmalgaMo_initial_similarities.npy   # NumPy file containing matrix of pairwise similarity scores before merging
@@ -93,15 +120,17 @@ A successful run of AmalgaMo produces the following files in the specified outpu
         ├── merge_3.pfm
         └── ...
 
+Depending on the input motif format, `AmalgaMo_PPMs.pfm` may instead present itself as a file with a different extension (e.g. `AmalgaMo_PPMs.jaspar`). The output format always matches the input format. To convert to other formats, see the section below.
+
+When applying AmalgaMo in any subsequent motif analysis, map your "hits" to the original HOCOMOCO motif names using the `AmalgaMo_results.json` file.
+
 Note that AmalgaMo merged motifs are *always* **position-probability matrices**, regardless of the selected input and output format (counts or probabilities in HOCOMOCO/JASPAR/MEME format).
 
 Example outputs for the optimized merged motif set from the associated manuscript are available in [example_output](/example_output).
 
-## Running monaLisa regression using the output of AmalgaMo
-
 ### Converting AmalgaMo output to JASPAR format
 
-An accessory script is available in [extra](/extra) for converting the NumPy archive file output of AmalgaMo into a single JASPAR-formatted file. This converted file can then be used to run the monaLisa pipeine.
+An accessory script is available in [motif_conversion](/motif_conversion) for converting the NumPy archive file output of AmalgaMo into a single JASPAR-formatted file. This converted file can then be used to run the monaLisa pipeine.
 
     <environment>/bin/python numpy_to_jaspar.py
         -i <path to AmalgaMo output directory>/AmalgaMo_PPMs.npz 
@@ -110,6 +139,8 @@ An accessory script is available in [extra](/extra) for converting the NumPy arc
 If you wish to skip the previous steps, the AmalgaMo-merged HOCOMOCO motif set is available at [formatted_merged_hocomoco_motifs/AmalgaMo_motifs.jaspar](/formatted_merged_hocomoco_motifs/AmalgaMo_motifs.jaspar).
 
 The MEME equivalents of the conversion script and merged motif set are also available in this repository.
+
+## Using the output of AmalgaMo for monaLisa's randomized Lasso stability selection
 
 ### Environment for monaLisa pipeline
 
@@ -131,11 +162,11 @@ Then, open an R session and install the following:
 
 Now, the script is ready to be executed as follows:
 
-    Rscript run_monaLisa_regression.R
-        <path to the tab-separated file with differential chromatin accessibility>
-        <path to output directory>/monalisa_selected_motifs.txt
-        <path to AmalgaMo output directory>/AmalgaMo_motifs.jaspar
-        <index of the column containing the log2 fold change in accessibility>
+    Rscript run_monaLisa_regression.R \
+    <path to the tab-separated file with differential chromatin accessibility> \
+    <path to output directory>/monalisa_selected_motifs.txt \
+    <path to AmalgaMo output directory>/AmalgaMo_motifs.jaspar \
+    <index of the column containing the log2 fold change in accessibility>
 
 Remarks:
 
@@ -143,6 +174,8 @@ Remarks:
 - This script follows the corresponding [Bioconductor vignette](https://bioconductor.org/packages/3.22/bioc/vignettes/monaLisa/inst/doc/selecting_motifs_with_randLassoStabSel.html), counting motif hits scoring above the 85th percentile and setting the Lasso stability selection cutoff to 0.8.
 - Since AmalgaMo outputs position-probability matrices, care must be taken when reading them in subsequent analyses. This script, along with the previous conversion script, ensures that they are read appropriately.
 
-# Notes
+## Notes
 
-For any questions please contact orsolya.lapohos@mail.mcgill.ca
+A full tutorial from beginning to end (with example data files) is available [here](tutorial.md).
+
+For any questions please contact [orsolya.lapohos@mail.mcgill.ca](mailto:orsolya.lapohos@mail.mcgill.ca).

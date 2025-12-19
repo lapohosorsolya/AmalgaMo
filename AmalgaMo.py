@@ -32,14 +32,39 @@ Optional Inputs
 '''
 
 
+def usage():
+    print('\nUSAGE: AmalgaMo.py [OPTIONS] -i INPUT_PATH -o OUTPUT_DIRECTORY -f FORMAT_CODE')
+    print('\nREQUIRED:\n')
+    print('  -i  path to input motifs;\n      may be a single file with motif matrices delimited by empty lines,\n      or a directory containing individual motif files\n')
+    print('  -o  output directory where the output should be written;\n      will make this if it doesn\'t exist\n')
+    print('  -f  the file format of the input motifs;\n      one of ("hocomoco", "jaspar", "meme")')
+    print('\nOPTIONS:\n')
+    print('  -h  show this help message and exit\n')
+    print('  -s  minimum similarity score to consider merging;\n      must be a float between 0.5 and 1 (default = 0.9)\n')
+    print('  -a  minimum alignment overlap to consider merging;\n      must be a float between 0.5 and 1 (default = 0.9)\n')
+    print('  -t  minimum total information ratio to consider merging;\n      must be a float between 0.5 and 1 (default = 0.8)\n')
+    print('  -m  maximum allowed length difference to consider merging;\n      must be an integer greater than or equal to 0 (default = 3)\n')
+    print('  -r  maximum allowed core length difference to consider merging;\n      must be an integer greater than or equal to 0 (default = 1)\n')
+    print('  -p  select representatives;\n      if this flag is given, the output will include representative motifs for\n      each merged group, in addition to averaged PPMs\n')
+    print('  -n  do not save merged motif logos;\n      if this flag is given, the output will not include the merged motif logos')
+    print('\nNOTES:\n')
+    print('  It is crucial that the specified FORMAT_CODE matches the format of the input')
+    print('  motifs. If not, parsing may continue incorrectly without raising an error.')
+    print('')
+
+
 def main(argv):
     try:
-        opts, _ = getopt.getopt(argv, 'm:t:r:s:i:a:o:f:')
+        opts, _ = getopt.getopt(argv, 'hm:t:r:s:i:a:o:f:pn')
     except getopt.GetoptError:
-        print('\n::: Error: cannot parse command line inputs')
+        print('\nERROR: cannot parse command line inputs\n')
+        usage()
         sys.exit(2) 
     for opt, arg in opts:
-        if opt == '-m':
+        if opt == '-h':
+            usage()
+            sys.exit(2)
+        elif opt == '-m':
             global max_allowed_len_diff
             max_allowed_len_diff = int(arg)
         elif opt == '-t':
@@ -49,8 +74,8 @@ def main(argv):
             global window_relax
             window_relax = int(arg)
         elif opt == '-i':
-            global input_dir
-            input_dir = arg
+            global input_path
+            input_path = arg
         elif opt == '-s':
             global sim_cutoff
             sim_cutoff = float(arg)
@@ -62,10 +87,18 @@ def main(argv):
             output_dir = arg
         elif opt == '-f':
             global form
-            form = arg
+            form = arg.lower()
+        elif opt == '-p':
+            global representatives
+            representatives = True
+        elif opt == '-z':
+            global compress_motifs
+            compress_motifs = True
+        elif opt == '-n':
+            global save_logos
+            save_logos = False
 
-
-if __name__ == "__main__":
+if __name__ == '__main__':
 
     ext = { 'hocomoco': 'pfm', 'jaspar': 'jaspar', 'meme': 'meme' }
 
@@ -76,6 +109,9 @@ if __name__ == "__main__":
     max_allowed_len_diff = 3
     window_relax = 1
     form = None
+    representatives = False
+    save_logos = True
+
     main(sys.argv[1:])
 
     # check if motif format code is valid
@@ -116,25 +152,29 @@ if __name__ == "__main__":
 
     # check if input and output directories exist
     print('\nPaths:')
-    if os.path.isdir(input_dir) == False:
-        print('Input directory does not exist: {}'.format(input_dir))
-        sys.exit(2)
+    if os.path.isdir(input_path) == True:
+        single_input_file = False
+        print('\tinput directory = {}'.format(input_path))
+    elif os.path.isfile(input_path) == True:
+        print('\tinput file = {}'.format(input_path))
+        single_input_file = True
     else:
-        print('\tinput directory = {}'.format(input_dir))
+        print('Input file/directory does not exist: {}'.format(input_path))
+        sys.exit(2)
     if os.path.isdir(output_dir) == False:
         os.mkdir(output_dir)
     print('\toutput directory = {}'.format(output_dir))
 
     # get motifs
-    print('\nReading motifs and calculating information content...')
-    files = sorted(os.listdir(input_dir))
-    n_motifs = len(files)
-    motif_dict = {}
-    names = []
-    for file in files:
-        name, motif = read_motif(os.path.join(input_dir, file), form)
-        motif_dict[name] = { 'pfm': motif }
-        names.append(name)
+    print('\nReading motifs...')
+    if single_input_file == True:
+        motif_dict = read_single_motif_file(input_path, form)
+    else:
+        motif_dict = read_individual_motif_files(input_path, form)
+    n_motifs = len(motif_dict)
+    names = sorted(list(motif_dict.keys()))
+
+    # calculate motif information
     for motif in motif_dict.keys():
         arr = motif_dict[motif]['pfm']
         motif_dict[motif]['length'] = arr.shape[1]
@@ -477,19 +517,49 @@ if __name__ == "__main__":
     np.save(os.path.join(output_dir, 'AmalgaMo_final_similarities.npy'), pairwise_similarities)
     np.save(os.path.join(output_dir, 'AmalgaMo_final_names.npy'), np.array(ordered_motif_names))
 
-    param_dict = { 'tir_cutoff': tir_cutoff, 'max_length_diff': max_allowed_len_diff, 'max_core_length_diff': window_relax, 'min_overlap': min_overlap, 'sim_cutoff': sim_cutoff, 'input_dir': input_dir, 'output_dir': output_dir, 'motif_format': form }
+    param_dict = { 'tir_cutoff': tir_cutoff, 'max_length_diff': max_allowed_len_diff, 'max_core_length_diff': window_relax, 'min_overlap': min_overlap, 'sim_cutoff': sim_cutoff, 'input_path': input_path, 'output_dir': output_dir, 'motif_format': form, 'select_representatives': representatives, 'save_logos': save_logos }
     with open(os.path.join(output_dir, 'AmalgaMo_params.json'), 'w') as f:
         json.dump(param_dict, f, indent = 4)
 
-    print('\nSaving merged motif logos...')
     merged_motif_names = [ i for i in output_ppms.keys() if 'merge_' in i ]
+
+    # save logos if needed
+    print('\nSaving merged motif logos...')
+    if save_logos == True:
+        logo_dir = os.path.join(output_dir, 'merged_logos')
+        os.mkdir(logo_dir)
+        for name in tqdm(merged_motif_names, total = len(merged_motif_names)):
+            write_logo(os.path.join(logo_dir, '{}.pdf'.format(name)), output_ppms[name])
+
+    # save merged PPMs
+    print('\nSaving merged motif PPMs...')
     ppm_dir = os.path.join(output_dir, 'merged_ppms')
     os.mkdir(ppm_dir)
-    logo_dir = os.path.join(output_dir, 'merged_logos')
-    os.mkdir(logo_dir)
     for name in tqdm(merged_motif_names, total = len(merged_motif_names)):
         write_motif(os.path.join(ppm_dir, '{}.{}'.format(name, ext[form])), name, output_ppms[name], form)
-        write_logo(os.path.join(logo_dir, '{}.pdf'.format(name)), output_ppms[name])
+
+    # write all final PPMs to a file with the same format as the input motifs
+    write_multiple_motifs(os.path.join(output_dir, 'AmalgaMo_PPMs.{}'.format(ext[form])), output_ppms, form)
+
+    # select representatives if needed
+    if representatives == True:
+        initial_ordered_names = np.load(os.path.join(output_dir, 'AmalgaMo_initial_names.npy'))
+        initial_similarities = np.load(os.path.join(output_dir, 'AmalgaMo_initial_similarities.npy'))
+        remap = select_representatives(initial_ordered_names, initial_similarities, output_dict, motif_dict)
+        # make dictionary of PPMs to save
+        ppms_to_save = {}
+        for key in output_ppms.keys():
+            # remap if needed
+            if 'merge_' not in key:
+                motif = key
+            else:
+                motif = remap[key]
+            # add PPM to dict
+            ppm = motif_dict[motif]['ppm']
+            ppms_to_save[key] = ppm.copy()
+        # save results
+        np.savez(os.path.join(output_dir, 'AmalgaMo_representative_PPMs.npz'), **ppms_to_save)
+        write_multiple_motifs(os.path.join(output_dir, 'AmalgaMo_representative_PPMs.{}'.format(ext[form])), ppms_to_save, form)
 
     print('\nSaved results to {}\n'.format(output_dir))
 

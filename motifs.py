@@ -1,3 +1,4 @@
+import os
 import numpy  as np
 from sklearn.metrics.pairwise import cosine_similarity
 import pandas as pd
@@ -5,7 +6,31 @@ import logomaker
 import matplotlib.pyplot as plt
 
 
-def read_motif(filename, fmtcode):
+def read_individual_motif_files(input_dir, fmtcode):
+    '''
+    Read and collect all motifs from a directory.
+    
+    Parameters
+    ----------
+    input_dir : string
+        path to the directory
+    fmtcode : string
+        motif format code; one of ["hocomoco", "jaspar", "meme"]
+
+    Returns
+    -------
+    motif_dict : dict with numpy arrays
+        collection of motif PFMs
+    '''
+    files = sorted(os.listdir(input_dir))
+    motif_dict = {}
+    for file in files:
+        name, motif = _read_motif(os.path.join(input_dir, file), fmtcode)
+        motif_dict[name] = { 'pfm': motif }
+    return motif_dict
+
+
+def _read_motif(filename, fmtcode):
     '''
     Read a motif file and convert it to a numpy array. 
     Before calling this function, check if the format code is valid.
@@ -29,6 +54,70 @@ def read_motif(filename, fmtcode):
         lines = [ line.rstrip() for line in lines ]
     name, arr = eval('_{}_lines_to_numpy'.format(fmtcode))(lines)
     return name, arr
+
+
+def _parse_multi_motif_file(filename, fmtcode):
+    '''
+    Split a file containing multiple motifs.
+
+    Parameters
+    ----------
+    filename : string
+        path to the motif file
+    fmtcode : string
+        motif format code; one of ["hocomoco", "jaspar", "meme"]
+    
+    Returns
+    -------
+    motif_lines : list
+        lines split by empty newlines
+    '''
+    with open(filename, 'r') as f:
+        lines = f.readlines()
+        lines = [ line.rstrip() for line in lines ]
+    # get rid of header (for MEME files)
+    if fmtcode == 'meme':
+        for i in range(len(lines)):
+            tokens = lines[i].split()
+            if len(tokens) > 0:
+                if tokens[0] == 'MOTIF':
+                    start_idx = i
+                    break
+        lines = lines[start_idx:]
+    # split lines by whitespace
+    motif_lines = []
+    current_lines = []
+    for line in lines:
+        if not line.strip():
+            motif_lines.append(current_lines)
+            current_lines = []
+        else:
+            current_lines.append(line)
+    return motif_lines
+
+
+def read_single_motif_file(filename, fmtcode):
+    '''
+    Read all motifs from a single file.
+    
+    Parameters
+    ----------
+    filename : string
+        path to the input file
+    fmtcode : string
+        motif format code; one of ["hocomoco", "jaspar", "meme"]
+
+    Returns
+    -------
+    motif_dict : dict with numpy arrays
+        collection of motif PFMs
+    '''
+    list_of_lines = _parse_multi_motif_file(filename, fmtcode)
+    motif_dict = {}
+    for lines in list_of_lines:
+        name, motif = eval('_{}_lines_to_numpy'.format(fmtcode))(lines)
+        motif_dict[name] = { 'pfm': motif }
+    return motif_dict
 
 
 def _hocomoco_lines_to_numpy(lines):
@@ -109,7 +198,34 @@ def write_motif(filename, name, motif, fmtcode):
         f.writelines(lines)
 
 
-def _numpy_to_hocomoco_lines(name, motif):
+def write_multiple_motifs(filename, motif_dict, fmtcode):
+    '''
+    Write a motif to file, converting it to the specified format. 
+    Before calling this function, check if the format code is valid.
+
+    Parameters
+    ----------
+    filename : string
+        path to the motif file
+    motif_dict : dict with numpy arrays
+        collection of PPMs to write to file
+    fmtcode : string
+        motif format code; one of ["hocomoco", "jaspar", "meme"]
+    '''
+    if fmtcode == 'meme':
+        lines = ['MEME version 4\n\nALPHABET= ACGT\n\nstrands: + -\n\nBackground letter frequencies\nA 0.25 C 0.25 G 0.25 T 0.25\n\n']
+    else:
+        lines = []
+    with open(filename, 'w') as f:
+        f.writelines(lines)
+    for name, motif in motif_dict.items():
+        lines = eval('_numpy_to_{}_lines'.format(fmtcode))(name, motif, no_header = True)
+        lines.append('\n')
+        with open(filename, 'a') as f:
+            f.writelines(lines)
+
+
+def _numpy_to_hocomoco_lines(name, motif, **kwargs):
     '''
     Convert a numpy array to HOCOMOCO motif file lines.
     '''
@@ -119,7 +235,7 @@ def _numpy_to_hocomoco_lines(name, motif):
     return lines
 
 
-def _numpy_to_jaspar_lines(name, motif):
+def _numpy_to_jaspar_lines(name, motif, **kwargs):
     '''
     Convert a numpy array to JASPAR motif file lines.
     '''
@@ -129,11 +245,14 @@ def _numpy_to_jaspar_lines(name, motif):
     return lines
 
 
-def _numpy_to_meme_lines(name, motif):
+def _numpy_to_meme_lines(name, motif, **kwargs):
     '''
     Convert a numpy array to MEME motif file lines.
     '''
     lines = ['MEME version 4\n\nALPHABET= ACGT\n\nstrands: + -\n\nBackground letter frequencies\nA 0.25 C 0.25 G 0.25 T 0.25\n\n']
+    if len(kwargs) > 0:
+        if kwargs['no_header'] == True:
+            lines = []
     lines.append('MOTIF {}\nletter-probability matrix: alength= 4 w= {} nsites= 100\n'.format(name, motif.shape[1]))
     for i in range(motif.shape[1]):
         lines.append('  '.join([ '{0:.6f}'.format(j) for j in motif[:, i].tolist() ]) + '\n')
@@ -353,3 +472,47 @@ def find_high_info_bounds(positional_ic, high_info_cutoff = 1):
         left_bound = 0
         right_bound = 0
     return left_bound, right_bound
+
+
+def select_representatives(initial_ordered_names, initial_similarities, merge_map, motif_dict):
+    '''
+    Select a representative motif for each merged set.
+    
+    Parameters
+    ----------
+    initial_ordered_names : numpy array
+        list of motif names corresponding to the order of indices in the initial_similarities array
+    initial_similarities: numpy array
+        pairwise similarity scores for all input motifs
+    merge_map : dict
+        mapping of merged motifs to original motif names
+
+    Returns
+    -------
+    remap : dict
+        a re-mapping of merged motif names to selected representatives from the original motifs
+    '''
+    merged_names = [ i for i in merge_map.keys() if 'merge_' in i ]
+    # make a new mapping with representatives
+    remap = {}
+    for merge in merged_names:
+        # get original motifs in the cluster
+        cluster_motifs = np.sort(np.array(merge_map[merge]))
+        if len(cluster_motifs) > 2: # find medioid for clusters with more than 2 motifs
+            # get their indices
+            indices = np.searchsorted(initial_ordered_names, cluster_motifs)
+            # subset the similarities and get the medioid
+            clust_sim = initial_similarities[indices][:, indices]
+            medioid_idx = np.argmin(np.sum(clust_sim, axis = 0))
+            rep_name = cluster_motifs[medioid_idx]
+        else: # select the motif with the greatest core information content
+            info_contents = []
+            for motif in cluster_motifs:
+                ic = motif_dict[motif]['logo']
+                pos_ic = np.sum(ic, axis = 0)
+                left_bound, right_bound = find_high_info_bounds(pos_ic)
+                core_ic = np.sum(pos_ic[left_bound:right_bound+1])
+                info_contents.append(core_ic)
+            rep_name = cluster_motifs[np.argmax(info_contents)]
+        remap[merge] = rep_name
+    return remap
