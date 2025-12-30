@@ -33,13 +33,14 @@ Optional Inputs
 
 
 def usage():
-    print('\nUSAGE: AmalgaMo.py [OPTIONS] -i INPUT_PATH -o OUTPUT_DIRECTORY -f FORMAT_CODE')
+    print('\nUSAGE: python AmalgaMo.py [OPTIONS] -i INPUT_PATH -o OUTPUT_DIRECTORY -f FORMAT_CODE')
     print('\nREQUIRED:\n')
     print('  -i  path to input motifs;\n      may be a single file with motif matrices delimited by empty lines,\n      or a directory containing individual motif files\n')
     print('  -o  output directory where the output should be written;\n      will make this if it doesn\'t exist\n')
-    print('  -f  the file format of the input motifs;\n      one of ("hocomoco", "jaspar", "meme")')
+    print('  -f  the file format of the input motifs;\n      one of ("hocomoco", "jaspar", "meme", "cisbp")')
     print('\nOPTIONS:\n')
     print('  -h  show this help message and exit\n')
+    print('  -b  motif nucleotides;\n      either "dna" or "rna" (default "dna")\n')
     print('  -s  minimum similarity score to consider merging;\n      must be a float between 0.5 and 1 (default = 0.9)\n')
     print('  -a  minimum alignment overlap to consider merging;\n      must be a float between 0.5 and 1 (default = 0.9)\n')
     print('  -t  minimum total information ratio to consider merging;\n      must be a float between 0.5 and 1 (default = 0.8)\n')
@@ -55,7 +56,7 @@ def usage():
 
 def main(argv):
     try:
-        opts, _ = getopt.getopt(argv, 'hm:t:r:s:i:a:o:f:pn')
+        opts, _ = getopt.getopt(argv, 'hm:t:r:s:i:a:o:f:pnb:')
     except getopt.GetoptError:
         print('\nERROR: cannot parse command line inputs\n')
         usage()
@@ -97,10 +98,13 @@ def main(argv):
         elif opt == '-n':
             global save_logos
             save_logos = False
+        elif opt == '-b':
+            global nucleotides
+            nucleotides = arg.lower()
 
 if __name__ == '__main__':
 
-    ext = { 'hocomoco': 'pfm', 'jaspar': 'jaspar', 'meme': 'meme' }
+    ext = { 'hocomoco': 'pfm', 'jaspar': 'jaspar', 'meme': 'meme', 'cisbp': 'txt' }
 
     # default parameters
     sim_cutoff = 0.9
@@ -111,16 +115,22 @@ if __name__ == '__main__':
     form = None
     representatives = False
     save_logos = True
+    nucleotides = 'dna'
 
     main(sys.argv[1:])
 
     # check if motif format code is valid
     print('\nMotif file format:')
-    if form not in ['hocomoco', 'jaspar', 'meme']:
-        print('Please indicate the format of the input motif matrices. Valid formats include:\n\t- hocomoco\n\t- jaspar\n\t- meme')
+    if form not in ['hocomoco', 'jaspar', 'meme', 'cisbp']:
+        print('Please indicate the format of the input motif matrices. Valid formats include:\n\t- hocomoco\n\t- jaspar\n\t- meme\n\t- cisbp')
         sys.exit(2)
-    else:
-        print('\t{}'.format(form))
+
+    # check if nucleotide selection is valid
+    if nucleotides not in ['dna', 'rna']:
+        print('Please select a valid nucleotide type. Valid options are:\n\t- dna\n\t- rna')
+        sys.exit(2)
+    
+    print('\t{} ({})'.format(form.upper(), nucleotides.upper()))
 
     # check if parameters are valid
     print('\nParameters:')
@@ -517,7 +527,7 @@ if __name__ == '__main__':
     np.save(os.path.join(output_dir, 'AmalgaMo_final_similarities.npy'), pairwise_similarities)
     np.save(os.path.join(output_dir, 'AmalgaMo_final_names.npy'), np.array(ordered_motif_names))
 
-    param_dict = { 'tir_cutoff': tir_cutoff, 'max_length_diff': max_allowed_len_diff, 'max_core_length_diff': window_relax, 'min_overlap': min_overlap, 'sim_cutoff': sim_cutoff, 'input_path': input_path, 'output_dir': output_dir, 'motif_format': form, 'select_representatives': representatives, 'save_logos': save_logos }
+    param_dict = { 'tir_cutoff': tir_cutoff, 'max_length_diff': max_allowed_len_diff, 'max_core_length_diff': window_relax, 'min_overlap': min_overlap, 'sim_cutoff': sim_cutoff, 'input_path': input_path, 'output_dir': output_dir, 'working_directory': os.getcwd(), 'motif_format': form, 'nucleotides': nucleotides, 'select_representatives': representatives, 'save_logos': save_logos }
     with open(os.path.join(output_dir, 'AmalgaMo_params.json'), 'w') as f:
         json.dump(param_dict, f, indent = 4)
 
@@ -529,19 +539,27 @@ if __name__ == '__main__':
         logo_dir = os.path.join(output_dir, 'merged_logos')
         os.mkdir(logo_dir)
         for name in tqdm(merged_motif_names, total = len(merged_motif_names)):
-            write_logo(os.path.join(logo_dir, '{}.pdf'.format(name)), output_ppms[name])
+            write_logo(os.path.join(logo_dir, '{}.pdf'.format(name)), output_ppms[name], nucleotides)
 
     # save merged PPMs
     print('\nSaving merged motif PPMs...')
     ppm_dir = os.path.join(output_dir, 'merged_ppms')
     os.mkdir(ppm_dir)
     for name in tqdm(merged_motif_names, total = len(merged_motif_names)):
-        write_motif(os.path.join(ppm_dir, '{}.{}'.format(name, ext[form])), name, output_ppms[name], form)
+        write_motif(os.path.join(ppm_dir, '{}.{}'.format(name, ext[form])), name, output_ppms[name], form, nucleotides)
 
     # write all final PPMs to a file with the same format as the input motifs
-    write_multiple_motifs(os.path.join(output_dir, 'AmalgaMo_PPMs.{}'.format(ext[form])), output_ppms, form)
+    if form != 'cisbp':
+        write_multiple_motifs(os.path.join(output_dir, 'AmalgaMo_PPMs.{}'.format(ext[form])), output_ppms, form, nucleotides)
+    else:
+        print('\nNot generating a single file containing all output (merged and single) motifs, since the input motifs were provided in CisBP format. Instead, the merged motifs will be written to the merged_ppms output directory, and the remaining single motifs will be written to the single_ppms output directory.')
+        print('\nIMPORTANT: If you need the full final motif set in a single directory, please combine the output files from merged_ppms and single_ppms directories.')
+        single_ppm_dir = os.path.join(output_dir, 'single_ppms')
+        os.mkdir(single_ppm_dir)
+        write_remainder_cisbp_motifs(single_ppm_dir, output_ppms, nucleotides)
 
     # select representatives if needed
+    print('\nSelecting representative motifs...')
     if representatives == True:
         initial_ordered_names = np.load(os.path.join(output_dir, 'AmalgaMo_initial_names.npy'))
         initial_similarities = np.load(os.path.join(output_dir, 'AmalgaMo_initial_similarities.npy'))
@@ -559,7 +577,13 @@ if __name__ == '__main__':
             ppms_to_save[key] = ppm.copy()
         # save results
         np.savez(os.path.join(output_dir, 'AmalgaMo_representative_PPMs.npz'), **ppms_to_save)
-        write_multiple_motifs(os.path.join(output_dir, 'AmalgaMo_representative_PPMs.{}'.format(ext[form])), ppms_to_save, form)
+        if form != 'cisbp':
+            write_multiple_motifs(os.path.join(output_dir, 'AmalgaMo_representative_PPMs.{}'.format(ext[form])), ppms_to_save, form, nucleotides)
+        else:
+            rep_ppm_dir = os.path.join(output_dir, 'representative_ppms')
+            os.mkdir(rep_ppm_dir)
+            for name in merged_motif_names:
+                write_motif(os.path.join(rep_ppm_dir, '{}.{}'.format(name, ext[form])), name, ppms_to_save[name], form, nucleotides)
 
     print('\nSaved results to {}\n'.format(output_dir))
 

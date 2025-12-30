@@ -1,6 +1,6 @@
 # AmalgaMo tutorial with example
 
-This is an example of how you can download and run AmalgaMo. Full documentation is available in the [README](/README.md) file.
+This is an example of how you can download and run AmalgaMo on human DNA motifs from HOCOMOCO. Full documentation is available in the [README](/README.md) file.
 
 ## Step 1: download AmalgaMo and set up its environment
 

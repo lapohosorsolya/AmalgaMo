@@ -1,6 +1,6 @@
-# AmalgaMo: DNA Motif Amalgamator
+# AmalgaMo: Motif Amalgamator
 
-This repository houses AmalgaMo, a tool developed for flexible merging of DNA-binding motifs of any organism, as well as our optimized merged HOCOMOCO human motif set in multiple formats.
+This repository houses AmalgaMo, a tool developed for flexible merging of DNA- or RNA-binding motifs of any organism, as well as our optimized merged HOCOMOCO human DNA-binding motif set in multiple formats.
 
 **Contents**
 
@@ -19,7 +19,7 @@ This repository houses AmalgaMo, a tool developed for flexible merging of DNA-bi
 
 ## Overview
 
-Given any set of input motifs in HOCOMOCO, JASPAR, or MEME format, AmalgaMo iteratively merges the most similar pairs according to the user-specified parameters, generating position-probability matrices, logos, and merging information for each resultant motif (see [example_output](/example_output)). The default settings have been tuned specifically using the HOCOMOCO v12 human core motif collection for downstream regression-based motif enrichment analysis. However, the five parameters provide ample flexibility for other applications.
+Given any set of input motifs for DNA-/RNA-binding proteins in HOCOMOCO, JASPAR, MEME, or CisBP format, AmalgaMo iteratively merges the most similar pairs according to the user-specified parameters, generating position-probability matrices, logos, and merging information for each resultant motif (see [example_output](/example_output)). The default settings have been tuned specifically using the HOCOMOCO v12 human core motif collection for downstream regression-based motif enrichment analysis. However, the five parameters provide ample flexibility for other applications.
 
 AmalgaMo is described in detail in the associated manuscript titled *AmalgaMo: flexible DNA motif merging* by Orsolya Lapohos and Gregory Fonseca (under review). This manuscript is available as a preprint [here](https://www.biorxiv.org/content/early/2025/08/01/2025.07.29.667561).
 
@@ -70,13 +70,14 @@ The following parameters are **required**:
 
 - `-i` (input path): path to input motifs (counts or probabilities); may be a single file with motif matrices delimited by empty lines, or a directory containing individual motif files
 - `-o` (output directory): output directory where the output should be written; will make this if it doesn't exist
-- `-f` (motif format code): the file format of the input motifs; HOCOMOCO, JASPAR, and MEME format supported
+- `-f` (motif format code): the file format of the input motifs; HOCOMOCO, JASPAR, MEME, and CisBP format supported
 
 Please note that it is crucial that the specified motif format code matches the actual format of the input motifs. If not, parsing may continue incorrectly without raising an error.
 
 The following parameters are *optional*:
 
-- `-h` show help message and exit
+- `-h` : show help message and exit
+- `-b` : motif nucleotides; DNA or RNA (default DNA)
 - `-s` (float between 0.5 and 1): minimum similarity score to consider merging; default is 0.9
 - `-a` (float between 0.5 and 1): minimum alignment overlap to consider merging; default is 0.9
 - `-t` (float between 0.5 and 1): minimum total information ratio to consider merging; default is 0.8
@@ -124,7 +125,7 @@ Depending on the input motif format, `AmalgaMo_PPMs.pfm` may instead present its
 
 When applying AmalgaMo in any subsequent motif analysis, map your "hits" to the original HOCOMOCO motif names using the `AmalgaMo_results.json` file.
 
-Note that AmalgaMo merged motifs are *always* **position-probability matrices**, regardless of the selected input and output format (counts or probabilities in HOCOMOCO/JASPAR/MEME format).
+Note that AmalgaMo merged motifs are *always* **position-probability matrices**, regardless of the selected input and output format (counts or probabilities in HOCOMOCO/JASPAR/MEME/CisBP format).
 
 Example outputs for the optimized merged motif set from the associated manuscript are available in [example_output](/example_output).
 
@@ -132,7 +133,7 @@ Example outputs for the optimized merged motif set from the associated manuscrip
 
 An accessory script is available in [motif_conversion](/motif_conversion) for converting the NumPy archive file output of AmalgaMo into a single JASPAR-formatted file. This converted file can then be used to run the monaLisa pipeine.
 
-    <environment>/bin/python numpy_to_jaspar.py
+    python numpy_to_jaspar.py
         -i <path to AmalgaMo output directory>/AmalgaMo_PPMs.npz 
         -o <path to AmalgaMo output directory>/AmalgaMo_motifs.jaspar
 

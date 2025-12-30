@@ -1,4 +1,4 @@
-import os
+import os, sys
 import numpy  as np
 from sklearn.metrics.pairwise import cosine_similarity
 import pandas as pd
@@ -15,7 +15,7 @@ def read_individual_motif_files(input_dir, fmtcode):
     input_dir : string
         path to the directory
     fmtcode : string
-        motif format code; one of ["hocomoco", "jaspar", "meme"]
+        motif format code; one of ["hocomoco", "jaspar", "meme", "cisbp"]
 
     Returns
     -------
@@ -26,6 +26,8 @@ def read_individual_motif_files(input_dir, fmtcode):
     motif_dict = {}
     for file in files:
         name, motif = _read_motif(os.path.join(input_dir, file), fmtcode)
+        if fmtcode == 'cisbp':
+            name = file.split('.txt')[0]
         motif_dict[name] = { 'pfm': motif }
     return motif_dict
 
@@ -47,7 +49,7 @@ def _read_motif(filename, fmtcode):
     name : string
         motif id
     motif : numpy array
-        numpy array with rows corresponding to nucleotides [A, C, G, T]
+        numpy array with rows corresponding to nucleotides [A, C, G, T/U]
     '''
     with open(filename, 'r') as f:
         lines = f.readlines()
@@ -112,6 +114,9 @@ def read_single_motif_file(filename, fmtcode):
     motif_dict : dict with numpy arrays
         collection of motif PFMs
     '''
+    if fmtcode == 'cisbp':
+        print('\nError: for CisBP-formatted motifs, please provide the directory containing individual motif files.')
+        sys.exit(2)
     list_of_lines = _parse_multi_motif_file(filename, fmtcode)
     motif_dict = {}
     for lines in list_of_lines:
@@ -179,7 +184,19 @@ def _meme_lines_to_numpy(lines):
     return name, arr
 
 
-def write_motif(filename, name, motif, fmtcode):
+def _cisbp_lines_to_numpy(lines):
+    '''
+    Convert lines read from a CisBP motif file to numpy format.
+    '''
+    arr = np.zeros((4, len(lines)-1))
+    for j, line in enumerate(lines[1:]):
+        tokens = line.split()
+        for i, val in enumerate(tokens[1:]):
+            arr[i, j] = float(val)
+    return None, arr
+
+
+def write_motif(filename, name, motif, fmtcode, nuc):
     '''
     Write a motif to file, converting it to the specified format. 
     Before calling this function, check if the format code is valid.
@@ -189,18 +206,18 @@ def write_motif(filename, name, motif, fmtcode):
     filename : string
         path to the motif file
     motif : numpy array
-        numpy array with rows corresponding to nucleotides [A, C, G, T]
+        numpy array with rows corresponding to nucleotides [A, C, G, T/U]
     fmtcode : string
-        motif format code; one of ["hocomoco", "jaspar", "meme"]
+        motif format code; one of ["hocomoco", "jaspar", "meme", "cisbp"]
     '''
-    lines = eval('_numpy_to_{}_lines'.format(fmtcode))(name, motif)
+    lines = eval('_numpy_to_{}_lines'.format(fmtcode))(name, motif, nuc = nuc)
     with open(filename, 'w') as f:
         f.writelines(lines)
 
 
-def write_multiple_motifs(filename, motif_dict, fmtcode):
+def write_multiple_motifs(filename, motif_dict, fmtcode, nuc):
     '''
-    Write a motif to file, converting it to the specified format. 
+    Write a set of motifs to one file, converting it to the specified format. 
     Before calling this function, check if the format code is valid.
 
     Parameters
@@ -210,19 +227,32 @@ def write_multiple_motifs(filename, motif_dict, fmtcode):
     motif_dict : dict with numpy arrays
         collection of PPMs to write to file
     fmtcode : string
-        motif format code; one of ["hocomoco", "jaspar", "meme"]
+        motif format code; one of ["hocomoco", "jaspar", "meme"]; not to be used for cisbp
     '''
+    if nuc == 'dna':
+        letter = 'T'
+    else:
+        letter = 'U'
     if fmtcode == 'meme':
-        lines = ['MEME version 4\n\nALPHABET= ACGT\n\nstrands: + -\n\nBackground letter frequencies\nA 0.25 C 0.25 G 0.25 T 0.25\n\n']
+        lines = ['MEME version 4\n\nALPHABET= ACG{}\n\nstrands: + -\n\nBackground letter frequencies\nA 0.25 C 0.25 G 0.25 {} 0.25\n\n'.format(letter, letter)]
     else:
         lines = []
     with open(filename, 'w') as f:
         f.writelines(lines)
     for name, motif in motif_dict.items():
-        lines = eval('_numpy_to_{}_lines'.format(fmtcode))(name, motif, no_header = True)
+        lines = eval('_numpy_to_{}_lines'.format(fmtcode))(name, motif, no_header = True, nuc = nuc)
         lines.append('\n')
         with open(filename, 'a') as f:
             f.writelines(lines)
+
+
+def write_remainder_cisbp_motifs(output_dir, motif_dict, nuc):
+    '''
+    Write leftover (unmerged) motifs.
+    '''
+    for name, motif in motif_dict.items():
+        if name.split('_')[0] != 'merge':
+            write_motif(os.path.join(output_dir, '{}.txt'.format(name)), name, motif, 'cisbp', nuc)
 
 
 def _numpy_to_hocomoco_lines(name, motif, **kwargs):
@@ -240,7 +270,11 @@ def _numpy_to_jaspar_lines(name, motif, **kwargs):
     Convert a numpy array to JASPAR motif file lines.
     '''
     lines = ['>{}\t{}\n'.format(name, name)]
-    for i, base in enumerate(['A', 'C', 'G', 'T']):
+    alphabet = ['A', 'C', 'G', 'T']
+    if 'nuc' in kwargs.keys():
+        if kwargs['nuc'] == 'rna':
+            alphabet = ['A', 'C', 'G', 'U']
+    for i, base in enumerate(alphabet):
         lines.append(base + '  [\t' + '\t'.join([ '{0:.6f}'.format(j) for j in motif[i, :].tolist() ]) + '  ]\n')
     return lines
 
@@ -249,13 +283,31 @@ def _numpy_to_meme_lines(name, motif, **kwargs):
     '''
     Convert a numpy array to MEME motif file lines.
     '''
-    lines = ['MEME version 4\n\nALPHABET= ACGT\n\nstrands: + -\n\nBackground letter frequencies\nA 0.25 C 0.25 G 0.25 T 0.25\n\n']
-    if len(kwargs) > 0:
+    letter = 'T'
+    if 'nuc' in kwargs.keys():
+        if kwargs['nuc'] == 'rna':
+            letter = 'U'
+    lines = ['MEME version 4\n\nALPHABET= ACG{}\n\nstrands: + -\n\nBackground letter frequencies\nA 0.25 C 0.25 G 0.25 {} 0.25\n\n'.format(letter, letter)]
+    if 'no_header' in kwargs.keys():
         if kwargs['no_header'] == True:
             lines = []
     lines.append('MOTIF {}\nletter-probability matrix: alength= 4 w= {} nsites= 100\n'.format(name, motif.shape[1]))
     for i in range(motif.shape[1]):
         lines.append('  '.join([ '{0:.6f}'.format(j) for j in motif[:, i].tolist() ]) + '\n')
+    return lines
+
+
+def _numpy_to_cisbp_lines(name, motif, **kwargs):
+    '''
+    Convert a numpy array to CisBP motif file lines.
+    '''
+    alphabet = ['A', 'C', 'G', 'T']
+    if 'nuc' in kwargs.keys():
+        if kwargs['nuc'] == 'rna':
+            alphabet = ['A', 'C', 'G', 'U']
+    lines = ['\t'.join(['Pos'] + alphabet) + '\n']
+    for i in range(motif.shape[1]):
+        lines.append('\t'.join([str(i+1)] + [ '{0:.6f}'.format(j) for j in motif[:, i].tolist() ]) + '\n')
     return lines
 
 
@@ -310,7 +362,7 @@ def make_info_content_logo(motif):
     return ic_logo
 
 
-def plot_ic_logo(ppm, ax):
+def plot_ic_logo(ppm, ax, nuc):
     '''
     Plot the information content logo of a PPM.
 
@@ -319,19 +371,22 @@ def plot_ic_logo(ppm, ax):
     ppm : numpy array
         position-probability matrix; first dimension should represent DNA bases, second dimension should represent positions
     '''
-    color_scheme = {'A': '#487b43', 'G': 'orange', 'C': 'royalblue', 'T': '#da2358'}
+    color_scheme = {'A': '#487b43', 'G': 'orange', 'C': 'royalblue', 'T': '#da2358', 'U': '#da2358'}
     motif = make_info_content_logo(ppm)
     df = pd.DataFrame(motif.T)
-    df.columns = ['A', 'C', 'G', 'T']
+    if nuc == 'dna':
+        df.columns = ['A', 'C', 'G', 'T']
+    else:
+        df.columns = ['A', 'C', 'G', 'U']
     logomaker.Logo(df, ax = ax, color_scheme = color_scheme)
 
 
-def write_logo(filepath, motif):
+def write_logo(filepath, motif, nuc):
     '''
     Write a motif logo to file.
     '''
     fig, ax = plt.subplots(figsize = (10, 1))
-    plot_ic_logo(motif, ax)
+    plot_ic_logo(motif, ax, nuc)
     ax.set_ylim(0, 2)
     ax.set_xticks([])
     ax.set_yticks([])
