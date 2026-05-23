@@ -21,16 +21,21 @@ This repository houses AmalgaMo, a tool developed for flexible merging of DNA- o
 
 Given any set of input motifs for DNA-/RNA-binding proteins in HOCOMOCO, JASPAR, MEME, or CisBP format, AmalgaMo iteratively merges the most similar pairs according to the user-specified parameters, generating position-probability matrices, logos, and merging information for each resultant motif (see [example_output](/example_output)). The default settings have been tuned specifically using the HOCOMOCO v12 human core motif collection for downstream regression-based motif enrichment analysis. However, the five parameters provide ample flexibility for other applications.
 
-AmalgaMo is described in detail in the associated manuscript titled *AmalgaMo: flexible DNA motif merging* by Orsolya Lapohos and Gregory Fonseca (under review). This manuscript is available as a preprint [here](https://www.biorxiv.org/content/early/2025/08/01/2025.07.29.667561).
+AmalgaMo is described in detail in the associated manuscript titled *AmalgaMo: flexible DNA motif merging* by Orsolya Lapohos and Gregory Fonseca (*Bioinformatics Advances*, 2026), available [here](https://academic.oup.com/bioinformaticsadvances/article/6/1/vbag043/8472719?guestAccessKey=).
 
-Preprint citation:
+BibTeX citation:
 
-    @article{Lapohos2025,
+    @article{Lapohos2026,
         author = {Lapohos, Orsolya and Fonseca, Gregory J.},
         title = {AmalgaMo: flexible DNA motif merging},
-        year = {2025},
-	    journal = {bioRxiv},
-	    doi = {10.1101/2025.07.29.667561}
+	    volume = {6},
+	    number = {1},
+	    pages = {vbag043},
+	    year = {2026},
+	    month = {01},
+	    issn = {2635-0041},
+	    doi = {10.1093/bioadv/vbag043},
+	    url = {https://doi.org/10.1093/bioadv/vbag043}
     }
 
 Below, you will find general instructions and documentation. A tutorial with real examples is also available [here](/tutorial.md).
